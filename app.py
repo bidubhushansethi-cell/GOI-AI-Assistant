@@ -323,8 +323,7 @@ model = load_model(
         "InputLayer": CompatibleInputLayer,
     }
 )
-
-return intents, words, classes, model
+    return intents, words, classes, model
 
 
 try:
