@@ -324,7 +324,7 @@ model = load_model(
     }
 )
 
-    return intents, words, classes, model
+return intents, words, classes, model
 
 
 try:
