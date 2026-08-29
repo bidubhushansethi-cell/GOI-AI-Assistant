@@ -16,8 +16,13 @@ import streamlit as st
 import nltk
 from nltk.stem import WordNetLemmatizer
 from tensorflow.keras.models import load_model
-
 from tensorflow.keras.layers import Dense, InputLayer
+from tensorflow.keras.initializers import GlorotUniform
+
+
+class CompatibleGlorotUniform(GlorotUniform):
+    def __init__(self, seed=None, input_axes=None, output_axes=None, **kwargs):
+        super().__init__(seed=seed)
 
 
 class CompatibleDense(Dense):
@@ -36,7 +41,12 @@ class CompatibleInputLayer(InputLayer):
             kwargs["shape"] = tuple(batch_shape[1:])
 
         super().__init__(*args, **kwargs)
+from tensorflow.keras.initializers import GlorotUniform
 
+
+class CompatibleGlorotUniform(GlorotUniform):
+    def __init__(self, seed=None, input_axes=None, output_axes=None, **kwargs):
+        super().__init__(seed=seed)
 
 # ============================================================
 # OWNER INFORMATION
@@ -321,6 +331,7 @@ def load_bot():
         custom_objects={
             "Dense": CompatibleDense,
             "InputLayer": CompatibleInputLayer,
+            "GlorotUniform": CompatibleGlorotUniform,
     }
 )
     
