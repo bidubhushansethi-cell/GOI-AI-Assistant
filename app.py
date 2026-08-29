@@ -315,12 +315,12 @@ def load_bot():
     ) as file:
         classes = pickle.load(file)
 
-model = load_model(
-    base / "chatbot_model.h5",
-    compile=False,
-    custom_objects={
-        "Dense": CompatibleDense,
-        "InputLayer": CompatibleInputLayer,
+    model = load_model(
+        base / "chatbot_model.h5",
+        compile=False,
+        custom_objects={
+            "Dense": CompatibleDense,
+            "InputLayer": CompatibleInputLayer,
     }
 )
     
