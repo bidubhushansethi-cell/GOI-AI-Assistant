@@ -17,6 +17,26 @@ import nltk
 from nltk.stem import WordNetLemmatizer
 from tensorflow.keras.models import load_model
 
+from tensorflow.keras.layers import Dense, InputLayer
+
+
+class CompatibleDense(Dense):
+    def __init__(self, *args, **kwargs):
+        kwargs.pop("quantization_config", None)
+        super().__init__(*args, **kwargs)
+
+
+class CompatibleInputLayer(InputLayer):
+    def __init__(self, *args, **kwargs):
+        batch_shape = kwargs.pop("batch_shape", None)
+        kwargs.pop("optional", None)
+
+        if batch_shape is not None:
+            kwargs["batch_size"] = batch_shape[0]
+            kwargs["shape"] = tuple(batch_shape[1:])
+
+        super().__init__(*args, **kwargs)
+
 
 # ============================================================
 # OWNER INFORMATION
