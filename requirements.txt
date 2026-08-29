@@ -5,3 +5,4 @@ numpy<2.1
 pillow
 requests
 beautifulsoup4
+nltk
