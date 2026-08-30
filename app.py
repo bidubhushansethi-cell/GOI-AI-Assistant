@@ -18,69 +18,71 @@ from nltk.stem import WordNetLemmatizer
 from tensorflow.keras.models import load_model
 from tensorflow.keras.layers import Dense, InputLayer
 from tensorflow.keras.initializers import GlorotUniform
-from tensorflow.keras.saving import register_keras_serializable
 
 
 # ============================================================
-# COMPATIBILITY LAYERS (FIXED)
+# COMPATIBILITY PATCHES (FIXED)
 # ============================================================
-# These classes let an old-format saved model (.h5) load cleanly
-# on newer TensorFlow/Keras versions. Each one now properly
-# implements get_config() / from_config() so Keras can correctly
-# serialize/deserialize nested objects (like initializers)
-# instead of crashing with "could not be deserialized properly".
+# The saved chatbot_model.h5 was created with an older
+# TensorFlow/Keras version. When Keras 3 reloads it, nested
+# objects (like the kernel_initializer inside a Dense layer)
+# are resolved by importing the REAL built-in class directly
+# (bypassing any custom_objects mapping we pass to load_model,
+# since their "registered_name" is None). That's why wrapping
+# them in a subclass and passing custom_objects does NOT work
+# for this specific error.
+#
+# The reliable fix is to monkey-patch the real classes'
+# __init__ methods so they silently ignore the extra keyword
+# arguments the old saved config includes (input_axes,
+# output_axes, quantization_config, optional) no matter how or
+# where Keras instantiates them during loading.
 
-@register_keras_serializable(package="Custom", name="GlorotUniform")
-class CompatibleGlorotUniform(GlorotUniform):
-    def __init__(self, seed=None, input_axes=None, output_axes=None, **kwargs):
-        super().__init__(seed=seed)
-
-    def get_config(self):
-        return {"seed": self.seed}
-
-    @classmethod
-    def from_config(cls, config):
-        config = dict(config)
-        config.pop("input_axes", None)
-        config.pop("output_axes", None)
-        return cls(**config)
+_original_glorot_init = GlorotUniform.__init__
 
 
-@register_keras_serializable(package="Custom", name="Dense")
-class CompatibleDense(Dense):
-    def __init__(self, *args, **kwargs):
-        kwargs.pop("quantization_config", None)
-        super().__init__(*args, **kwargs)
-
-    def get_config(self):
-        config = super().get_config()
-        config.pop("quantization_config", None)
-        return config
-
-    @classmethod
-    def from_config(cls, config):
-        config = dict(config)
-        config.pop("quantization_config", None)
-        return cls(**config)
+def _patched_glorot_init(self, seed=None, **kwargs):
+    kwargs.pop("input_axes", None)
+    kwargs.pop("output_axes", None)
+    _original_glorot_init(self, seed=seed)
 
 
-@register_keras_serializable(package="Custom", name="InputLayer")
-class CompatibleInputLayer(InputLayer):
-    def __init__(self, *args, **kwargs):
-        batch_shape = kwargs.pop("batch_shape", None)
-        kwargs.pop("optional", None)
+GlorotUniform.__init__ = _patched_glorot_init
 
-        if batch_shape is not None:
-            kwargs["batch_size"] = batch_shape[0]
-            kwargs["shape"] = tuple(batch_shape[1:])
 
-        super().__init__(*args, **kwargs)
+_original_dense_init = Dense.__init__
 
-    @classmethod
-    def from_config(cls, config):
-        config = dict(config)
-        config.pop("optional", None)
-        return cls(**config)
+
+def _patched_dense_init(self, *args, **kwargs):
+    kwargs.pop("quantization_config", None)
+    _original_dense_init(self, *args, **kwargs)
+
+
+Dense.__init__ = _patched_dense_init
+
+
+_original_input_layer_init = InputLayer.__init__
+
+
+def _patched_input_layer_init(self, *args, **kwargs):
+    batch_shape = kwargs.pop("batch_shape", None)
+    kwargs.pop("optional", None)
+
+    if batch_shape is not None:
+        kwargs["batch_size"] = batch_shape[0]
+        kwargs["shape"] = tuple(batch_shape[1:])
+
+    _original_input_layer_init(self, *args, **kwargs)
+
+
+InputLayer.__init__ = _patched_input_layer_init
+
+# Kept for backward compatibility with the custom_objects mapping
+# used by load_model below (they now just point at the patched
+# built-in classes themselves).
+CompatibleGlorotUniform = GlorotUniform
+CompatibleDense = Dense
+CompatibleInputLayer = InputLayer
 
 
 # ============================================================
