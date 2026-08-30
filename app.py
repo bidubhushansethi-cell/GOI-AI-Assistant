@@ -18,19 +18,53 @@ from nltk.stem import WordNetLemmatizer
 from tensorflow.keras.models import load_model
 from tensorflow.keras.layers import Dense, InputLayer
 from tensorflow.keras.initializers import GlorotUniform
+from tensorflow.keras.saving import register_keras_serializable
 
 
+# ============================================================
+# COMPATIBILITY LAYERS (FIXED)
+# ============================================================
+# These classes let an old-format saved model (.h5) load cleanly
+# on newer TensorFlow/Keras versions. Each one now properly
+# implements get_config() / from_config() so Keras can correctly
+# serialize/deserialize nested objects (like initializers)
+# instead of crashing with "could not be deserialized properly".
+
+@register_keras_serializable(package="Custom", name="GlorotUniform")
 class CompatibleGlorotUniform(GlorotUniform):
     def __init__(self, seed=None, input_axes=None, output_axes=None, **kwargs):
         super().__init__(seed=seed)
 
+    def get_config(self):
+        return {"seed": self.seed}
 
+    @classmethod
+    def from_config(cls, config):
+        config = dict(config)
+        config.pop("input_axes", None)
+        config.pop("output_axes", None)
+        return cls(**config)
+
+
+@register_keras_serializable(package="Custom", name="Dense")
 class CompatibleDense(Dense):
     def __init__(self, *args, **kwargs):
         kwargs.pop("quantization_config", None)
         super().__init__(*args, **kwargs)
 
+    def get_config(self):
+        config = super().get_config()
+        config.pop("quantization_config", None)
+        return config
 
+    @classmethod
+    def from_config(cls, config):
+        config = dict(config)
+        config.pop("quantization_config", None)
+        return cls(**config)
+
+
+@register_keras_serializable(package="Custom", name="InputLayer")
 class CompatibleInputLayer(InputLayer):
     def __init__(self, *args, **kwargs):
         batch_shape = kwargs.pop("batch_shape", None)
@@ -41,12 +75,13 @@ class CompatibleInputLayer(InputLayer):
             kwargs["shape"] = tuple(batch_shape[1:])
 
         super().__init__(*args, **kwargs)
-from tensorflow.keras.initializers import GlorotUniform
 
+    @classmethod
+    def from_config(cls, config):
+        config = dict(config)
+        config.pop("optional", None)
+        return cls(**config)
 
-class CompatibleGlorotUniform(GlorotUniform):
-    def __init__(self, seed=None, input_axes=None, output_axes=None, **kwargs):
-        super().__init__(seed=seed)
 
 # ============================================================
 # OWNER INFORMATION
@@ -332,9 +367,9 @@ def load_bot():
             "Dense": CompatibleDense,
             "InputLayer": CompatibleInputLayer,
             "GlorotUniform": CompatibleGlorotUniform,
-    }
-)
-    
+        }
+    )
+
     return intents, words, classes, model
 
 
